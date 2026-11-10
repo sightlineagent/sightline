@@ -20,11 +20,15 @@ const expect = (name, cond, out) => { console.log((cond ? "pass " : "FAIL ") + n
 
 await new Promise(r => setTimeout(r, 800));
 try {
-  let r = cli("check", FAKE); expect("copycat is flagged", r.ok && /Copies the PONS ticker/.test(r.out) && /HIGH/.test(r.out), r.out);
+  const live = `http://127.0.0.1:${PORT}/api/live`;
+  let r = cli("sync", "wrongkey", "--url", live); expect("sync rejects a wrong key", !r.ok && /refused the sync key/.test(r.out), r.out);
+  r = cli("sync", "testkey", "--url", live); expect("sync turns on", r.ok && /live at/.test(r.out), r.out);
+  r = cli("check", FAKE); expect("copycat is flagged", r.ok && /Copies the PONS ticker/.test(r.out) && /HIGH/.test(r.out), r.out);
   r = cli("check", SL); expect("curve token: top 10 is not penalised", r.ok && /Still on the Pons bonding curve/.test(r.out) && !/Top 10 wallets hold 100%/.test(r.out), r.out);
   r = cli("buy", FAKE, "0.1"); expect("high risk buy needs --force", !r.ok && /--force/.test(r.out), r.out);
   r = cli("buy", PONS, "0.2", "--tp", "2x", "--sl", "-15%"); expect("buy with tp and sl", r.ok && /BUY/.test(r.out) && /\[tp\]/.test(r.out), r.out);
   r = cli("buy", SL, "0.05", "--tp", "+50%", "--force"); expect("forced buy", r.ok, r.out);
+  { const last = JSON.parse(readFileSync(join(here, "last_sync.json"), "utf8")); expect("buy publishes positions", last.positions.some(p => p.symbol === "PONS" && p.tp && p.sl), JSON.stringify(last)); }
   r = cli("sell", "PONS", "50%"); expect("sell half by ticker", r.ok && /SELL/.test(r.out), r.out);
   r = cli("tp", "SIGHTLINE", "banana"); expect("bad tp is rejected", !r.ok && /Can't read/.test(r.out), r.out);
   setPrice(SL, base[SL] * 1.7); r = cli("watch", "--once"); expect("take profit fires", /TAKE PROFIT SIGHTLINE/.test(r.out), r.out);

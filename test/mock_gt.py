@@ -40,4 +40,11 @@ class H(http.server.BaseHTTPRequestHandler):
                     inc.append({"id": "robinhood_" + a, "type": "token", "attributes": {"address": a, "symbol": t["symbol"]}})
             return self.send({"data": data, "included": inc})
         self.send({"errors": [{"status": "404"}]}, 404)
+def do_POST(self):
+    if self.path != "/api/live": return self.send({"error": "nope"}, 404)
+    if self.headers.get("authorization") != "Bearer testkey": return self.send({"error": "wrong or missing sync key"}, 401)
+    body = self.rfile.read(int(self.headers.get("content-length", 0)))
+    open(os.path.join(HERE, "last_sync.json"), "wb").write(body)
+    self.send({"ok": True})
+H.do_POST = do_POST
 http.server.ThreadingHTTPServer(("127.0.0.1", int(sys.argv[1])), H).serve_forever()

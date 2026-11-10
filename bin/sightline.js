@@ -16,6 +16,7 @@ ${bold("sightline")} ${dim("paper mode: real prices from Robinhood Chain, simula
   ${green("history")}                              last trades
   ${green("balance")}                              paper ETH left
   ${green("reset")} [--eth 1]                      start over with a fresh paper balance
+  ${green("sync")} <key | status | off>             publish your paper wallet to sightline-agent.xyz/#/live
 
   ${dim("examples")}
   sightline check 0x137b2be32719a2007d46c8fe8f8aeae31792e479
@@ -44,7 +45,7 @@ const run = {
   check: () => C.check(args), buy: () => C.buy(args, flags), sell: () => C.sell(args),
   tp: () => C.setLevel("tp", args), sl: () => C.setLevel("sl", args),
   positions: () => C.positions(), pos: () => C.positions(), watch: () => C.watch(flags),
-  history: () => C.history(), balance: () => C.balance(), reset: () => C.reset(flags),
+  history: () => C.history(), balance: () => C.balance(), reset: () => C.reset(flags), sync: () => C.sync(args, flags),
 }[cmd];
 
 if (!run) { console.log(HELP); process.exit(cmd && !["help", "-h", "--help"].includes(cmd) ? 1 : 0); }

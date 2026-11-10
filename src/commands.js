@@ -1,7 +1,14 @@
 import * as D from "./data.js";
 import * as R from "./risk.js";
 import * as P from "./paper.js";
+import * as S from "./sync.js";
 import { green, dim, amber, red, blue, bold, usd, price, eth, pct, amount, short, ago, table, log, riskTag } from "./ui.js";
+
+async function publish(s) {
+  const r = await S.publish(s);
+  if (r === true) log("live", dim("synced to sightline-agent.xyz/#/live"));
+  else if (typeof r === "string") log("live", amber(`not synced: ${r}`));
+}
 
 /* Accept a contract address, or the ticker of a position you already hold. */
 function resolve(s, arg) {
@@ -63,6 +70,7 @@ export async function buy(args, flags) {
   if (pos.sl) log("sl", `sell all at ${price(pos.sl.price)} (${pos.sl.spec})`);
   if (pos.tp || pos.sl) log("note", dim("TP and SL run while `sightline watch` is running."));
   log("wallet", `${eth(s.eth)} left in the paper wallet`);
+  await publish(s);
 }
 
 export async function sell(args) {
@@ -78,13 +86,14 @@ export async function sell(args) {
   P.save(s);
   log("paper", `${red("SELL")} ${amount(h.tokens)} ${h.symbol} for ${eth(h.eth)} at ${price(p)}   pnl ${h.pnlEth >= 0 ? green("+" + h.pnlEth.toFixed(6)) : red(h.pnlEth.toFixed(6))} ETH`);
   log("wallet", `${eth(s.eth)} in the paper wallet`);
+  await publish(s);
 }
 
 export async function setLevel(kind, args) {
   const s = P.load(); const k = resolve(s, args[0]); const pos = s.positions[k];
   if (!pos) throw new Error("You have no paper position in this token. Buy first, or pass --tp/--sl with buy.");
   if (!args[1]) throw new Error(`Usage: sightline ${kind} <contract> ${kind === "tp" ? "+50% | 2x | 0.0001" : "-20% | 0.00001"} (or "off")`);
-  if (args[1] === "off") { pos[kind] = null; P.save(s); return log(kind, `${kind.toUpperCase()} removed for ${pos.symbol}`); }
+  if (args[1] === "off") { pos[kind] = null; P.save(s); log(kind, `${kind.toUpperCase()} removed for ${pos.symbol}`); return publish(s); }
   const tp = P.target(args[1], pos.entry);
   if (kind === "tp" && tp <= pos.entry * 0.999) log("note", amber("This take profit is below your entry price."));
   if (kind === "sl" && tp >= pos.entry * 1.001) log("note", amber("This stop loss is above your entry price."));
@@ -92,6 +101,7 @@ export async function setLevel(kind, args) {
   P.save(s);
   log(kind, `${pos.symbol}: sell all at ${price(tp)} (${args[1]} from entry ${price(pos.entry)})`);
   log("note", dim("Runs while `sightline watch` is running."));
+  await publish(s);
 }
 
 function positionRows(s, live) {
@@ -124,10 +134,11 @@ export function history() {
 
 export function balance() { const s = P.load(); log("wallet", `${eth(s.eth)} in the paper wallet, ${Object.keys(s.positions).length} open positions`); }
 
-export function reset(flags) {
+export async function reset(flags) {
   const e = flags.eth ? Number(flags.eth) : P.START_ETH;
   if (!(e > 0)) throw new Error("Use a positive amount, for example: sightline reset --eth 1");
-  P.save(P.fresh(e)); log("paper", `Reset. ${eth(e)} in the paper wallet, no positions.`);
+  const s = P.fresh(e); P.save(s); log("paper", `Reset. ${eth(e)} in the paper wallet, no positions.`);
+  return publish(s);
 }
 
 /* The loop that makes TP and SL work: checks prices every few seconds and sells when a level is hit. */
@@ -135,6 +146,9 @@ export async function watch(flags) {
   const every = Math.max(10, Number(flags.every || 20));
   const tty = process.stdout.isTTY;
   log("watch", `Watching your positions every ${every}s on Robinhood Chain. Ctrl+C to stop.`);
+  const c = S.config();
+  log("live", c ? `publishing to ${c.url || S.DEFAULT_URL}` : dim("not publishing to the website (run `sightline sync <key>` to turn it on)"));
+  let lastBeat = 0;
   let stop = false; process.on("SIGINT", () => { stop = true; console.log("\n" + dim("watch stopped")); process.exit(0); });
   process.on("SIGTERM", () => process.exit(0));
   while (!stop) {
@@ -151,6 +165,7 @@ export async function watch(flags) {
             s = P.load(); if (!s.positions[k]) continue;
             const h = P.sell(s, k, 1, now, live.eth, t?.liq ?? p.liq ?? 0, hitTp ? "take profit" : "stop loss");
             P.save(s);
+            await publish(s);
             log(hitTp ? "tp" : "sl", `${hitTp ? green("TAKE PROFIT") : red("STOP LOSS")} ${p.symbol}: sold ${amount(h.tokens)} at ${price(now)} for ${eth(h.eth)}, pnl ${h.pnlEth >= 0 ? green("+" + h.pnlEth.toFixed(6)) : red(h.pnlEth.toFixed(6))} ETH`);
           }
         }
@@ -160,8 +175,22 @@ export async function watch(flags) {
           else log("watch", Object.values(s.positions).map(p => `${p.symbol} ${price(live.tokens[p.address.toLowerCase()])}`).join("  "));
         }
       } else if (tty) process.stdout.write(dim(`\r${new Date().toLocaleTimeString()}  no open positions, waiting...   `));
+      if (Date.now() - lastBeat > 10 * 60000) { const r = await S.publish(P.load(), true); if (r === true) lastBeat = Date.now(); else if (typeof r === "string") log("live", amber(`not synced: ${r}`)); }
     } catch (e) { log("watch", amber(e.message)); }
     if (flags.once) break;
     await new Promise(r => setTimeout(r, every * 1000));
   }
+}
+
+export async function sync(args, flags) {
+  if (args[0] === "off") { S.clearConfig(); return log("live", "Publishing to the website is off."); }
+  if (args[0] === "status" || !args[0]) {
+    const c = S.config();
+    return log("live", c ? `on, publishing to ${c.url || S.DEFAULT_URL}` : "off. Turn it on with: sightline sync <key>");
+  }
+  const c = { key: args[0], url: flags.url || S.DEFAULT_URL };
+  S.saveConfig(c);
+  const r = await S.publish(P.load(), true);
+  if (r === true) log("live", green("on") + `: your paper wallet is now live at sightline-agent.xyz/#/live`);
+  else { S.clearConfig(); throw new Error(`Sync failed: ${r}. Nothing was saved.`); }
 }

@@ -41,6 +41,7 @@ There are no dependencies to install.
 | `sightline history` | Your last 25 trades |
 | `sightline balance` | ETH left in the paper wallet |
 | `sightline reset [--eth 1]` | Start over with a fresh paper wallet |
+| `sightline sync <key \| status \| off>` | Publish your paper wallet to the Live page on sightline-agent.xyz |
 
 Examples:
 
@@ -60,6 +61,12 @@ Take profit and stop loss are percentages from your average entry price (`+50%`,
 - Your entry price includes those costs.
 - Tokens that score 65 or higher are refused unless you add `--force`.
 - Everything is saved in `~/.sightline/`: `paper.json` holds the wallet and positions, `trades.log` keeps every fill.
+
+## Show it on the website
+
+`sightline sync <key>` publishes the paper wallet to [sightline-agent.xyz/#/live](https://www.sightline-agent.xyz/#/live). After that, every buy, sell, take profit, stop loss and level change is sent automatically, and `watch` sends a heartbeat every 10 minutes. Live prices on the page come from the chain, so nothing is sent while prices simply move.
+
+Only the positions, levels, recent trades and paper balance are sent. The key is stored in `~/.sightline/sync.json` (readable only by you). `sightline sync off` stops publishing.
 
 ## Run it 24/7 on a VPS
 
