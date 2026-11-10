@@ -1,0 +1,103 @@
+# Sightline CLI
+
+The Sightline agent in your terminal. Check any token on Robinhood Chain, buy it, and let take profit and stop loss sell it for you.
+
+This version runs in **paper mode**: prices are real and come live from Robinhood Chain, but the ETH balance is simulated. Nothing is signed and no wallet is needed. Live trading will come in a later version.
+
+```
+$ sightline check 0x83a9146affcd4e45ec584f2b710a66f2d13782c8
+
+PONS  Pons  0x83a9146affcd4e45ec584f2b710a66f2d13782c8
+risk 91 HIGH
+ !!  Copies the PONS ticker. The bigger, older one is 0x39dbed3a...4571
+
+agent> Careful. PONS reuses a ticker that already exists at 0x39db...4571.
+```
+
+## Install
+
+Needs Node.js 18 or newer.
+
+```bash
+git clone https://github.com/sightlineagent/sightline.git
+cd sightline
+npm link          # makes the `sightline` command available everywhere
+sightline         # shows all commands
+```
+
+There are no dependencies to install.
+
+## Commands
+
+| Command | What it does |
+|---|---|
+| `sightline check <contract>` | Risk score from 3 to 97, with the reasons |
+| `sightline buy <contract> <eth> [--tp X] [--sl Y]` | Paper buy, with optional take profit and stop loss |
+| `sightline sell <contract or ticker> [percent]` | Paper sell, 100% by default |
+| `sightline tp <contract or ticker> <+50% \| 2x \| price \| off>` | Set or remove take profit |
+| `sightline sl <contract or ticker> <-20% \| price \| off>` | Set or remove stop loss |
+| `sightline positions` | Open positions with live profit and loss |
+| `sightline watch [--every 20]` | Checks prices and runs take profit and stop loss |
+| `sightline history` | Your last 25 trades |
+| `sightline balance` | ETH left in the paper wallet |
+| `sightline reset [--eth 1]` | Start over with a fresh paper wallet |
+
+Examples:
+
+```bash
+sightline buy 0x137b2be32719a2007d46c8fe8f8aeae31792e479 0.05 --tp +50% --sl -20% --force
+sightline tp SIGHTLINE 2x
+sightline sl SIGHTLINE off
+sightline watch
+```
+
+Take profit and stop loss are percentages from your average entry price (`+50%`, `-20%`), a multiple (`2x`), or an exact USD price (`0.000006`).
+
+## How the paper fills work
+
+- Prices come from GeckoTerminal's public API for Robinhood Chain. No API key is needed.
+- Each buy and sell pays a 1% fee and a price impact estimated from the pool's liquidity, so thin pools cost more, as they would for real.
+- Your entry price includes those costs.
+- Tokens that score 65 or higher are refused unless you add `--force`.
+- Everything is saved in `~/.sightline/`: `paper.json` holds the wallet and positions, `trades.log` keeps every fill.
+
+## Run it 24/7 on a VPS
+
+Take profit and stop loss only work while `sightline watch` is running. On an Ubuntu or Debian VPS:
+
+```bash
+# 1. Node.js 20
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt-get install -y nodejs git
+
+# 2. A user for the bot, and the code
+sudo useradd -m -s /bin/bash sightline
+sudo -iu sightline git clone https://github.com/sightlineagent/sightline.git
+
+# 3. Keep `watch` running, and restart it after reboots
+sudo cp /home/sightline/sightline/deploy/sightline-watch.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now sightline-watch
+
+# 4. Check it
+sudo systemctl status sightline-watch
+sudo journalctl -u sightline-watch -f
+```
+
+Place trades as the same user, so `watch` sees them:
+
+```bash
+sudo -iu sightline
+cd sightline && npm link
+sightline buy <contract> 0.05 --tp +50% --sl -20%
+```
+
+To update later: `cd ~/sightline && git pull`, then `sudo systemctl restart sightline-watch`.
+
+## Notes
+
+- The risk model is the same one used on [sightline-agent.xyz](https://www.sightline-agent.xyz). It is a signal, not advice.
+- GeckoTerminal allows about 30 requests a minute. `watch` uses one request per check for all positions, plus one when a level is hit.
+- Run the tests with `npm test` (needs Python 3).
+
+Follow [@sightlineagent](https://x.com/sightlineagent) on X.

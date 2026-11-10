@@ -1,0 +1,18 @@
+# Keeps `sightline watch` running on a Linux VPS so take profit and stop loss work around the clock.
+# Install: see README, "Run it 24/7 on a VPS".
+[Unit]
+Description=Sightline watch (take profit and stop loss, paper mode)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=sightline
+WorkingDirectory=/home/sightline/sightline
+ExecStart=/usr/bin/env node /home/sightline/sightline/bin/sightline.js watch --every 20
+Restart=always
+RestartSec=10
+Environment=NO_COLOR=1
+
+[Install]
+WantedBy=multi-user.target

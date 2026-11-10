@@ -1,0 +1,16 @@
+{
+  "name": "sightline-cli",
+  "version": "0.1.0",
+  "description": "Sightline agent in your terminal: risk checks, paper buys, take profit and stop loss on Robinhood Chain.",
+  "type": "module",
+  "bin": {
+    "sightline": "bin/sightline.js"
+  },
+  "scripts": {
+    "test": "node test/run.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT"
+}
