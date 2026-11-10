@@ -7,7 +7,7 @@ SL = "0x137b2be32719a2007d46c8fe8f8aeae31792e479"
 PONS = "0x39dbed3a2bd333467115de45665cc57f813c4571"
 FAKE = "0x83a9146affcd4e45ec584f2b710a66f2d13782c8"
 TOK = {
-  SL:   dict(name="Sightline", symbol="SIGHTLINE", liq=3841.5, holders=None, top10=None, hp=False, dev="1.7", created="2026-11-10T17:59:50Z", dex="pons-v2", lp={"graduation_percentage": 3.37, "completed": False}, h24="7.86", h1="7.86", tx={"buys": 51, "sells": 13}),
+  SL:   dict(name="Sightline", symbol="SIGHTLINE", liq=3841.5, holders=14, top10="100", hp=False, dev="1.7", created="2026-11-10T17:59:50Z", dex="pons-v2", lp={"graduation_percentage": 3.37, "completed": False}, h24="7.86", h1="7.86", tx={"buys": 51, "sells": 13}),
   PONS: dict(name="Pons", symbol="PONS", liq=1554847.6, holders=104521, top10="82.33", hp=False, dev=None, created="2026-07-13T20:42:21Z", dex="uniswap-v3-robinhood", lp=None, h24="-9.46", h1="-2.36", tx={"buys": 21, "sells": 72}),
   FAKE: dict(name="Pons", symbol="PONS", liq=43428.9, holders=202, top10="38.6", hp=None, dev=None, created="2026-11-10T16:15:16Z", dex="uniswap-v4-robinhood", lp=None, h24="0.11", h1="0", tx={"buys": 2, "sells": 2}),
 }

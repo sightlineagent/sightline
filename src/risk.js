@@ -13,7 +13,9 @@ export function score(t, original) {
   if (t.honeypot === true) r += 60;
   if (original) r += 45;
   r += t.liq < 10000 ? 30 : t.liq < 50000 ? 16 : t.liq < 150000 ? 6 : 0;
-  if (t.top10 != null) r += t.top10 >= 70 ? 16 : t.top10 >= 45 ? 8 : 0;
+  // on a Pons bonding curve the curve contract holds the unsold supply, so top-10 concentration is not a real signal yet
+  const onCurve = t.curve && !t.curve.done;
+  if (t.top10 != null && !onCurve) r += t.top10 >= 70 ? 16 : t.top10 >= 45 ? 8 : 0;
   r += t.holders == null ? 12 : t.holders < 200 ? 14 : t.holders < 1000 ? 6 : 0;
   if (t.age != null) r += t.age < 1440 ? 18 : t.age < 10080 ? 5 : 0;
   if (t.tx1h && t.tx1h.sells >= 10 && t.tx1h.sells > 2 * Math.max(1, t.tx1h.buys)) r += 8;
@@ -30,7 +32,8 @@ export function signals(t, original) {
   s.push(t.honeypot === true ? [false, "Fails the honeypot check: buyers may not be able to sell"] : t.honeypot === false ? [true, "Passes the honeypot check"] : [null, "Honeypot check not run yet"]);
   if (original) s.push([false, `Copies the ${t.symbol} ticker. The bigger, older one is ${original.address}`]);
   s.push([t.liq >= 50000, `Liquidity ${usd(t.liq)}${t.liq < 50000 ? ", thin: expect big price swings" : ""}`]);
-  s.push(t.top10 == null ? [null, "Holder split not loaded yet"] : [t.top10 < 45, `Top 10 wallets hold ${t.top10.toFixed(0)}% (pool and burn addresses included)`]);
+  if (t.curve && !t.curve.done) s.push([null, "Still on the Pons bonding curve: the curve contract holds the unsold supply, so top-10 share is not meaningful yet"]);
+  else s.push(t.top10 == null ? [null, "Holder split not loaded yet"] : [t.top10 < 45, `Top 10 wallets hold ${t.top10.toFixed(0)}% (pool and burn addresses included)`]);
   if (t.holders != null) s.push([t.holders >= 1000, `${t.holders.toLocaleString()} holders`]);
   if (t.age != null) s.push([t.age >= 10080, `Trading for ${ago(t.age * 60000)}`]);
   if (t.devPct != null && t.devPct > 5) s.push([false, `Developer wallet holds ${t.devPct}%`]);
