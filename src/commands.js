@@ -44,13 +44,14 @@ export async function buy(args, flags) {
   let s = P.load(); const ca = resolve(s, args[0]);
   const ethIn = Number(args[1]);
   if (!(ethIn > 0)) throw new Error("Usage: sightline buy <contract> <eth amount> [--tp +50%] [--sl -20%]");
-  const [a, px] = await Promise.all([analyse(ca), D.prices([ca])]);
+  const a = await analyse(ca);
   const t = a.t;
-  if (!px.eth) throw new Error("Could not read the ETH price. Try again in a minute.");
+  const ethUsd = t.ethUsd > 500 ? t.ethUsd : (await D.prices([ca])).eth;
+  if (!ethUsd) throw new Error("Could not read the ETH price. Try again in a minute.");
   if (a.original) log("risk", red(`copycat: the ${t.symbol} ticker already exists at ${a.original.address}`));
   if (a.risk >= 65 && !flags.force) throw new Error(`${t.symbol} scores ${a.risk}/100 (high risk). Add --force if you still want to paper-buy it.`);
   s = P.load();   // re-read in case watch changed it
-  const h = P.buy(s, t, ethIn, px.eth);
+  const h = P.buy(s, t, ethIn, ethUsd);
   const pos = s.positions[t.address.toLowerCase()];
   pos.liq = t.liq;
   if (flags.tp) pos.tp = { spec: flags.tp, price: P.target(flags.tp, pos.entry) };
@@ -68,7 +69,8 @@ export async function sell(args) {
   let s = P.load(); const k = resolve(s, args[0]);
   const frac = args[1] ? Number(String(args[1]).replace("%", "")) / 100 : 1;
   if (!(frac > 0 && frac <= 1)) throw new Error("Sell between 1% and 100%, for example: sightline sell <contract> 50%");
-  const [t, px] = await Promise.all([D.token(k), D.prices([k])]);
+  const px = await D.prices([k]);
+  const t = await D.token(k).catch(() => null);
   const p = px.tokens[k] ?? t?.price;
   if (!p) throw new Error("No price for this token right now.");
   s = P.load();

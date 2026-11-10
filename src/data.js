@@ -3,23 +3,36 @@ const GT = (process.env.SIGHTLINE_GT || "https://api.geckoterminal.com/api/v2").
 const NET = "robinhood";
 export const WETH = "0x0bd7d308f8e1639fab988df18a8011f41eacad73";
 const sleep = ms => new Promise(r => setTimeout(r, ms));
+import { readFileSync, writeFileSync, mkdirSync } from "fs";
+import { join } from "path";
+import { homedir } from "os";
+/* Short disk cache so `check` then `buy` doesn't ask GeckoTerminal for the same data twice (free tier is about 30 calls a minute). */
+const CACHE_DIR = join(process.env.SIGHTLINE_HOME || join(homedir(), ".sightline"), "cache");
+const cacheFile = path => join(CACHE_DIR, path.replace(/[^a-z0-9]+/gi, "_").slice(0, 180) + ".json");
+function cacheGet(path, ttl) { try { const c = JSON.parse(readFileSync(cacheFile(path), "utf8")); return Date.now() - c.at < ttl ? c.body : undefined; } catch { return undefined; } }
+function cachePut(path, body) { try { mkdirSync(CACHE_DIR, { recursive: true }); writeFileSync(cacheFile(path), JSON.stringify({ at: Date.now(), body })); } catch {} }
 const num = v => (v === null || v === undefined || v === "" ? null : Number(v));
 
 export const isAddress = s => /^0x[0-9a-fA-F]{40}$/.test(s || "");
 
-async function get(path, tries = 3) {
+async function get(path, ttl = 0, tries = 4) {
+  if (ttl) { const hit = cacheGet(path, ttl); if (hit !== undefined) return hit; }
   let last;
   for (let i = 0; i < tries; i++) {
     try {
       const r = await fetch(GT + path, { headers: { accept: "application/json" } });
-      if (r.ok) return r.json();
+      if (r.ok) { const j = await r.json(); if (ttl) cachePut(path, j); return j; }
       if (r.status === 404) return null;
       last = new Error(`GeckoTerminal answered ${r.status}`);
-      if (r.status === 429) { await sleep(2500 * (i + 1)); continue; }
+      if (r.status === 429) {
+        const wait = Number(r.headers.get("retry-after")) * 1000 || [4000, 8000, 15000, 20000][i];
+        if (process.stderr.isTTY) process.stderr.write(`\rrate limited by GeckoTerminal, retrying in ${Math.round(wait / 1000)}s...   `);
+        await sleep(wait); continue;
+      }
     } catch (e) { last = e; }
     await sleep(1000 * (i + 1));
   }
-  throw new Error(`Market data is unavailable right now (${last ? last.message : "no answer"}). Try again in a minute.`);
+  throw new Error(`Market data is unavailable right now (${last ? last.message : "no answer"}). Wait a minute and try again.`);
 }
 
 /* Prices in USD for several tokens and ETH, in one call. */
@@ -35,12 +48,10 @@ export async function prices(addrs) {
 /* Everything the risk check needs for one token. */
 export async function token(ca) {
   const addr = ca.toLowerCase();
-  const [t, pools, info] = await Promise.all([
-    get(`/networks/${NET}/tokens/${addr}`),
-    get(`/networks/${NET}/tokens/${addr}/pools?page=1`),
-    get(`/networks/${NET}/tokens/${addr}/info`).catch(() => null),
-  ]);
+  const t = await get(`/networks/${NET}/tokens/${addr}`, 45000);
   if (!t?.data) return null;
+  const pools = await get(`/networks/${NET}/tokens/${addr}/pools?page=1`, 45000);
+  const info = await get(`/networks/${NET}/tokens/${addr}/info`, 300000).catch(() => null);
   const a = t.data.attributes, i = info?.data?.attributes || {};
   const plist = (pools?.data || []).map(p => ({
     address: p.attributes.address, dex: p.relationships?.dex?.data?.id || "",
@@ -62,6 +73,7 @@ export async function token(ca) {
     honeypot: i.is_honeypot === true ? true : i.is_honeypot === false ? false : null,
     devPct: num(i.developer_holding_percentage),
     curve: lp ? { pct: num(lp.graduation_percentage), done: !!lp.completed } : null,
+    ethUsd: main.ethUsd || null,
     pons: /pons/.test(main.dex || "") || (i.gt_category_ids || []).includes("pons-launchpad"),
     stock: /Robinhood Token/i.test(a.name || ""),
   };
@@ -70,7 +82,7 @@ export async function token(ca) {
 /* Other tokens on Robinhood Chain that use the same ticker, to catch copycats. */
 export async function sameTicker(symbol, address) {
   if (!symbol) return [];
-  const j = await get(`/search/pools?query=${encodeURIComponent(symbol)}&network=${NET}&include=base_token`).catch(() => null);
+  const j = await get(`/search/pools?query=${encodeURIComponent(symbol)}&network=${NET}&include=base_token`, 300000).catch(() => null);
   const toks = new Map((j?.included || []).filter(x => x.type === "token").map(x => [x.id, x.attributes]));
   const seen = new Map();
   for (const p of j?.data || []) {
