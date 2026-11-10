@@ -16,16 +16,25 @@ agent> Careful. PONS reuses a ticker that already exists at 0x39db...4571.
 
 ## Install
 
-Needs Node.js 18 or newer.
+Needs Node.js 18 or newer. Works on Linux, macOS, and Windows through Ubuntu on WSL.
 
 ```bash
-git clone https://github.com/sightlineagent/sightline.git
-cd sightline
-npm link          # makes the `sightline` command available everywhere
+cd ~ && git clone https://github.com/sightlineagent/sightline.git
+echo 'alias sightline="node ~/sightline/bin/sightline.js"' >> ~/.bashrc && source ~/.bashrc
 sightline         # shows all commands
 ```
 
-There are no dependencies to install.
+There are no dependencies to install. If you prefer, `cd sightline && npm link` installs the command globally instead of the alias.
+
+Quick start:
+
+```bash
+sightline check 0x137b2be32719a2007d46c8fe8f8aeae31792e479
+sightline buy 0x137b2be32719a2007d46c8fe8f8aeae31792e479 0.05 --tp +50% --sl -20% --force
+sightline watch   # keep this running in a second window
+```
+
+To update: `cd ~/sightline && git pull`.
 
 ## Commands
 
@@ -95,7 +104,7 @@ Place trades as the same user, so `watch` sees them:
 
 ```bash
 sudo -iu sightline
-cd sightline && npm link
+echo 'alias sightline="node ~/sightline/bin/sightline.js"' >> ~/.bashrc && source ~/.bashrc
 sightline buy <contract> 0.05 --tp +50% --sl -20%
 ```
 
